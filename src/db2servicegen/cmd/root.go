@@ -35,7 +35,7 @@ var rootCmd = &cobra.Command{
 	Long:  "Query Db2 for available services and generate REST Client SP service projects",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := &http.Client{}
-		req, _ := http.NewRequest("GET", server, nil)
+		req, _ := http.NewRequest("GET", server + "/services", nil)
 		req.SetBasicAuth(userID, password)
 		req.Header.Add("Accept", "application/json")
 		req.Header.Add("Content-Type", "application/json")
