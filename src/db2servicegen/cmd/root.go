@@ -34,8 +34,7 @@ var server string
 var userID string
 var password string
 
-/*ServicesList The list of all the services in Db2*/
-type ServicesList struct {
+type servicesList struct {
 	DB2Services []struct {
 		ServiceName         string      `json:"ServiceName"`
 		ServiceCollectionID interface{} `json:"ServiceCollectionID"`
@@ -51,24 +50,24 @@ var rootCmd = &cobra.Command{
 	Long:  "Query Db2 for available services and generate REST Client SP service projects",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client := &http.Client{}
-		req, _ := http.NewRequest("GET", server + "/services", nil)
-		req.SetBasicAuth(userID, password)
-		req.Header.Add("Accept", "application/json")
-		req.Header.Add("Content-Type", "application/json")
+		req, err := createRequest(server + "/services")
+		if err != nil {
+			return err
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			return err
 		}
 		defer resp.Body.Close()
 		body, _ := ioutil.ReadAll(resp.Body)
-		var services ServicesList
+		var services servicesList
 		json.Unmarshal(body, &services)
 		for _, service := range services.DB2Services {
 			// fmt.Printf("%s\n", service.ServiceName)
-			req, _ := http.NewRequest("GET", service.ServiceURL, nil)
-			req.SetBasicAuth(userID, password)
-			req.Header.Add("Accept", "application/json")
-			req.Header.Add("Content-Type", "application/json")
+			req, err := createRequest(service.ServiceURL)
+			if err != nil {
+				return err
+			}
 			resp, err := client.Do(req)
 			if err != nil {
 				return err
@@ -84,20 +83,10 @@ var rootCmd = &cobra.Command{
 			requestSchema := strings.ReplaceAll(string(request), "\"null\",", "")
 			response, _ := json.Marshal(service["ResponseSchema"].(map[string]interface{}))
 			responseSchema := strings.ReplaceAll(string(response), "\"null\",", "")
+			p := createProperties(service)
 			os.Mkdir(serviceName, 0775)
 			ioutil.WriteFile("./"+serviceName+"/"+serviceName+"Request.json", []byte(requestSchema), 0644)
 			ioutil.WriteFile("./"+serviceName+"/"+serviceName+"Response.json", []byte(responseSchema), 0644)
-			p := properties.NewProperties()
-			p.Set("name", serviceName)
-			p.Set("provider", "rest")
-			p.Set("version", "1.0")
-			p.Set("connectionRef", "db2Connection")
-			p.Set("description", service["serviceName"].(string))
-			p.Set("requestSchemaFile", "./"+serviceName+"Request.json")
-			p.Set("responseSchemaFile", "./"+serviceName+"Response.json")
-			p.Set("verb", "POST")
-			u, _ := url.Parse(service["serviceName"].(string))
-			p.Set("uri", u.RequestURI())
 			f, _ := os.Create("./" + serviceName + "/service.properties")
 			defer f.Close()
 			w := bufio.NewWriter(f)
@@ -106,6 +95,35 @@ var rootCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+//Creates an HTTP request for calling Db2 on the specified url
+func createRequest(url string) (*http.Request, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(userID, password)
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("Content-Type", "application/json")
+	return req, nil
+}
+
+//Create the properties object for the given Db2 service
+func createProperties(service map[string]interface{}) *properties.Properties {
+	serviceName := service["serviceName"].(string)
+	p := properties.NewProperties()
+	p.Set("name", serviceName)
+	p.Set("provider", "rest")
+	p.Set("version", "1.0")
+	p.Set("connectionRef", "db2Connection")
+	p.Set("description", service["serviceDescription"].(string))
+	p.Set("requestSchemaFile", "./"+serviceName+"Request.json")
+	p.Set("responseSchemaFile", "./"+serviceName+"Response.json")
+	p.Set("verb", "POST")
+	u, _ := url.Parse(service["serviceURL"].(string))
+	p.Set("uri", u.RequestURI())
+	return p
 }
 
 //Execute runs the command with no sub-command. Sets up the parameters and handles any errors thrown.
