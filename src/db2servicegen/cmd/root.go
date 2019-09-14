@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"errors"
 
 	"github.com/magiconair/properties"
 	"github.com/spf13/cobra"
@@ -58,12 +59,17 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if resp.StatusCode != 200 {
+			if resp.StatusCode == 403 || resp.StatusCode == 401 {
+				return errors.New("Unable to authenticate with Db2")
+			} 
+			return errors.New(resp.Status)
+		}
 		defer resp.Body.Close()
 		body, _ := ioutil.ReadAll(resp.Body)
 		var services servicesList
 		json.Unmarshal(body, &services)
 		for _, service := range services.DB2Services {
-			// fmt.Printf("%s\n", service.ServiceName)
 			req, err := createRequest(service.ServiceURL)
 			if err != nil {
 				return err
@@ -71,6 +77,12 @@ var rootCmd = &cobra.Command{
 			resp, err := client.Do(req)
 			if err != nil {
 				return err
+			}
+			if resp.StatusCode != 200 {
+				if resp.StatusCode == 403 || resp.StatusCode == 401 {
+					return errors.New("Unable to authenticate with Db2")
+				} 
+				return errors.New(resp.Status)
 			}
 			defer resp.Body.Close()
 			body, _ := ioutil.ReadAll(resp.Body)
@@ -83,14 +95,29 @@ var rootCmd = &cobra.Command{
 			requestSchema := strings.ReplaceAll(string(request), "\"null\",", "")
 			response, _ := json.Marshal(service["ResponseSchema"].(map[string]interface{}))
 			responseSchema := strings.ReplaceAll(string(response), "\"null\",", "")
-			p := createProperties(service)
-			os.Mkdir(serviceName, 0775)
-			ioutil.WriteFile("./"+serviceName+"/"+serviceName+"Request.json", []byte(requestSchema), 0644)
-			ioutil.WriteFile("./"+serviceName+"/"+serviceName+"Response.json", []byte(responseSchema), 0644)
-			f, _ := os.Create("./" + serviceName + "/service.properties")
+			serviceProperties := createProperties(service)
+			err = os.Mkdir(serviceName, 0775)
+			if (err != nil) {
+				return err
+			}
+			err = ioutil.WriteFile("./"+serviceName+"/"+serviceName+"Request.json", []byte(requestSchema), 0644)
+			if (err != nil) {
+				return err
+			}
+			err = ioutil.WriteFile("./"+serviceName+"/"+serviceName+"Response.json", []byte(responseSchema), 0644)
+			if (err != nil) {
+				return err
+			}
+			f, err := os.Create("./" + serviceName + "/service.properties")
+			if (err != nil) {
+				return err
+			}
 			defer f.Close()
 			w := bufio.NewWriter(f)
-			p.Write(w, properties.UTF8)
+			_, err = serviceProperties.Write(w, properties.UTF8)
+			if (err != nil) {
+				return err
+			}
 			w.Flush()
 		}
 		return nil
