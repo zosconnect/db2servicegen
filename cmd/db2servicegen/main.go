@@ -17,7 +17,7 @@
 package main
 
 import (
-  "./cmd"
+  "./cli"
 )
 
 func main() {
