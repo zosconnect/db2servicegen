@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - master
-  pull-request:
+  pull_request:
 
 jobs:
   lint:
@@ -23,7 +23,7 @@ jobs:
           export PATH=$PATH:$(go env GOPATH)/bin # temporary fix. See https://github.com/actions/setup-go/issues/14
           go get -u golang.org/x/lint/golint 
           make lint
-          
+
   build:
     name: Build
     runs-on: ubuntu-latest 
