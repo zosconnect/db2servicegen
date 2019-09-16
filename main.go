@@ -17,7 +17,7 @@
 package main
 
 import (
-  "./cli"
+  "github.com/zosconnect/db2servicegen/cmd"
 )
 
 func main() {
